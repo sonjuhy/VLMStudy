@@ -3,10 +3,16 @@ import torch.nn as nn
 
 
 class ImageEmbeddingLayer(nn.Module):
-    def __init__(self, in_channels: int, img_size: int, patch_size: int):
+    def __init__(
+        self,
+        in_channels: int,
+        img_size: int,
+        patch_size: int,
+        embedding_size: int = 768,
+    ):
         super().__init__()
         self.num_patches = (img_size // patch_size) ** 2
-        self.embedding_size = in_channels * patch_size**2
+        self.embedding_size = embedding_size
 
         self.div_img = nn.Conv2d(
             in_channels, self.embedding_size, kernel_size=patch_size, stride=patch_size
@@ -18,9 +24,8 @@ class ImageEmbeddingLayer(nn.Module):
         )
 
     def forward(self, x):
-        x = self.div_img(x)  # [B, E, H_p, W_p]
-        x = x.flatten(2).transpose(1, 2)  # [B, Num_patches, E]
-
+        x = self.div_img(x)
+        x = x.flatten(2).transpose(1, 2)
         b = x.shape[0]
         cls_tokens = self.cls_token.expand(b, -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
@@ -112,7 +117,9 @@ class ViTEncoder(nn.Module):
     ):
         super().__init__()
         # 임베딩은 한 번만 실행되도록 여기에 배치
-        self.embedding = ImageEmbeddingLayer(in_channels, img_size, patch_size)
+        self.embedding = ImageEmbeddingLayer(
+            in_channels, img_size, patch_size, embedding_size
+        )
 
         self.layers = nn.ModuleList(
             [ViTModule(embedding_size, num_heads=num_heads) for _ in range(5)]
@@ -126,7 +133,7 @@ class ViTEncoder(nn.Module):
 
         # 트랜스포머 블록 반복
         for layer in self.layers:
-            x = layer(x)
+            x, _ = layer(x)
 
         # CLS 토큰 추출 및 분류
         cls_token = x[:, 0]
