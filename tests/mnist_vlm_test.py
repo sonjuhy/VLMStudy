@@ -1,13 +1,10 @@
-from io import BytesIO
 import os
-import requests
 import torch
 import torch.nn as nn
 
 from torch.optim import AdamW
 from dataloader.mnist_dataloader import (
     MNISTVLMDataset,
-    mnist_dataloader,
     vlm_collate_fn,
 )
 from vision.vit_model import ImageEmbeddingLayer, ViTModule
@@ -127,7 +124,7 @@ def train(epochs: int = 10):
         tokenizer.pad_token = tokenizer.eos_token
 
     # 모델 로드
-    llm = AutoModelForCausalLM.from_pretrained(model_name).to(device)  # type: ignore
+    llm = AutoModelForCausalLM.from_pretrained(model_name).to(device)
 
     vit = MNISTViTEncoder(
         embedding_size=768,
@@ -151,12 +148,12 @@ def train(epochs: int = 10):
     data_path = os.path.join("datasets", "mnist")
     raw_train_dataset = datasets.MNIST(root=data_path, train=True, download=True)
 
-    # 2. 작성하신 MNISTVLMDataset으로 감싸기
-    # 여기서 텍스트 템플릿과 토크나이징이 적용됩니다.
+    # 2. 커스텀 MNISTVLMDataset으로 감싸기
+    # 여기서 텍스트 템플릿과 토크나이징이 적용.
     train_vlm_dataset = MNISTVLMDataset(raw_train_dataset, tokenizer)
 
     # 3. DataLoader에 vlm_collate_fn 적용
-    # collate_fn을 넣어야 리스트 형태의 출력을 텐서 배치로 묶어줍니다.
+    # collate_fn을 넣어야 리스트 형태의 출력을 텐서 배치로 결합.
     train_loader = DataLoader(
         train_vlm_dataset, batch_size=64, shuffle=True, collate_fn=vlm_collate_fn
     )
@@ -170,7 +167,6 @@ def train(epochs: int = 10):
         for batch in pbar:
             optimizer.zero_grad()
 
-            # 루나 레이크 AMX 가속을 위한 bfloat16 사용
             with torch.autocast(device_type=device, dtype=torch.bfloat16):
                 outputs = vlm_model(
                     images=batch["images"].to(device),
