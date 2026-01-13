@@ -76,6 +76,8 @@ class ViTModule(nn.Module):
         self.norm = nn.LayerNorm(embedding_size)
 
     def forward(self, x):
+        if isinstance(x, tuple):
+            x = x[0]
         # Attention + Skip Connection
         norm_x = self.norm(x)
         attn_out, attension = self.multihead_attention(norm_x)
@@ -105,6 +107,19 @@ class TransformerEncoder(nn.Module):
         return x
 
 
+class Projector(nn.Module):
+    def __init__(self, input_size: int, projection_size: int) -> None:
+        super().__init__()
+        self.projector = nn.Sequential(
+            nn.Linear(input_size, input_size),
+            nn.GELU(),
+            nn.Linear(input_size, projection_size),
+        )
+
+    def forward(self, x):
+        return self.projector(x)
+
+
 class ViTEncoder(nn.Module):
     def __init__(
         self,
@@ -126,6 +141,26 @@ class ViTEncoder(nn.Module):
         )
 
         self.classifer = nn.Linear(embedding_size, num_class)
+
+    def extract_features(self, x):
+        # 1. 임베딩 레이어 통과
+        x = self.embedding(x)
+
+        # 2. Transformer 블록 통과
+        for layer in self.layers:
+            x = layer(x)
+
+            # [중요] 만약 블록의 출력이 튜플이라면 텐서만 추출하여 업데이트
+            if isinstance(x, tuple):
+                x = x[0]
+
+        # 3. 최종 결과물 x가 텐서인지 다시 한번 확인 (방어적 코딩)
+        if isinstance(x, tuple):
+            x = x[0]
+
+        # 4. CLS 토큰 제외하고 196개의 패치 특징만 반환
+        # 이제 x는 확실히 [Batch, 197, 768] 모양의 텐서입니다.
+        return x[:, 1:, :]
 
     def forward(self, x):
         # 이미지 -> 패치 임베딩 (한 번만)
