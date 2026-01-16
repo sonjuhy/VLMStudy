@@ -3,6 +3,7 @@ from torch.utils.data import DataLoader, Dataset
 
 import os
 import torch
+import random
 
 
 def vlm_collate_fn(batch):
@@ -33,9 +34,22 @@ class MNISTVLMDataset(Dataset):
 
         # 1. 대화 형식 구성 (HyperCLOVA X 템플릿 적용 가능)
         # <image> 토큰은 나중에 ViT 특징값이 들어갈 자리임을 표시하는 특수 문자열입니다.
-        prompt = (
-            f"질문: 이 이미지에 있는 숫자는 무엇인가요?\n답변: 이 숫자는 {label}입니다."
-        )
+
+        case = random.random()
+
+        if case < 0.4:  # 유형 1: 기본 인식
+            prompt = (
+                f"질문: 이 숫자가 뭐야?\n답변: 이 이미지에 있는 숫자는 {label}입니다."
+            )
+        elif case < 0.65:  # 유형 2: 맞는지 확인 (Yes)
+            prompt = f"질문: 이 숫자가 {label}이 맞니?\n답변: 네, 맞습니다. 이 숫자는 {label}입니다."
+        else:  # 유형 3: 틀린 숫자 제시 (No)
+            wrong_label = (label + random.randint(1, 9)) % 10
+            prompt = f"질문: 이 숫자가 {wrong_label}이니?\n답변: 아니오, 틀렸습니다. 이 숫자는 {label}입니다."
+
+        # prompt = (
+        #     f"질문: 이 이미지에 있는 숫자는 무엇인가요?\n답변: 이 숫자는 {label}입니다."
+        # )
 
         # 2. 토크나이징
         inputs = self.tokenizer(
