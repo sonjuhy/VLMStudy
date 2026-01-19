@@ -194,8 +194,10 @@ def train(epochs: int = 10):
         print("-" * 50)
 
     # 학습 완료 후 저장
-    torch.save(vlm_model.vit.state_dict(), "vit_768_mnist.pth")
-    torch.save(vlm_model.projector.state_dict(), "projector_768_to_1024.pth")
+    torch.save(vlm_model.vit.state_dict(), "vit_768_multi_prompt_mnist.pth")
+    torch.save(
+        vlm_model.projector.state_dict(), "projector_multi_prompt_768_to_1024.pth"
+    )
 
 
 def valid():
@@ -233,14 +235,19 @@ def valid():
     vlm_model = MNISTViTHyperClovaX(vit, llm).to(device)
 
     # 2. 학습된 가중치 로드
-    vlm_model.vit.load_state_dict(torch.load("vit_768_mnist.pth", map_location=device))
+    vlm_model.vit.load_state_dict(
+        torch.load("vit_768_multi_prompt_mnist.pth", map_location=device)
+    )
     vlm_model.projector.load_state_dict(
-        torch.load("projector_768_to_1024.pth", map_location=device)
+        torch.load("projector_multi_prompt_768_to_1024.pth", map_location=device)
     )
     vlm_model.eval()
 
     # 3. 추론용 프롬프트 구성 (답변 직전까지만 입력)
-    prompt = "질문: 이 이미지에 있는 숫자는 무엇인가요?\n답변: 이 숫자는"
+    # prompt = "질문: 이 이미지에 있는 숫자는 무엇인가요?\n답변: 이 숫자는"
+    prompt = "질문: 이 이미지에 있는 숫자가 무엇인가요?\n답변: 이 숫자는"
+    # prompt = "질문: 이 숫자가 7이 맞니?"
+    prompt = "질문: 이 숫자가 5가 맞니?"
     inputs = tokenizer(prompt, return_tensors="pt").to(device)
 
     # 4. 생성 (Inference)
@@ -259,7 +266,7 @@ def valid():
 
             output_ids = vlm_model.llm.generate(
                 inputs_embeds=combined_embeds,
-                max_new_tokens=10,  # " 5입니다." 정도만 생성하면 되므로 짧게 설정
+                max_new_tokens=20,  # " 5입니다." 정도만 생성하면 되므로 짧게 설정
                 do_sample=False,
                 pad_token_id=tokenizer.pad_token_id,
                 eos_token_id=tokenizer.eos_token_id,
@@ -267,6 +274,7 @@ def valid():
 
     # 5. 결과 디코딩
     result = tokenizer.decode(output_ids[0], skip_special_tokens=True)
+    print(f'프롬프트 내용 : "{prompt}"')
     print(f"--- 추론 결과 ---")
     if sample_label is not None:
         print(f"실제 정답: {sample_label}")
@@ -296,3 +304,17 @@ def valid():
 # --- 추론 결과 ---
 # 실제 정답: 7
 # 모델 답변:  7입니다.
+
+
+# 학습하지 않은 프롬프트 양식
+# 프롬프트 내용 : prompt = "질문: 이미지에 쓰여진 숫자가 뭐니?\n답변: 이 숫자는"
+# --- 추론 결과 ---
+# 실제 정답: 7
+# 모델 답변:  7입니다.
+# 학습하지 못한 단어들이지만 HyperCLOVA X의 언어 이해 능력 덕분에 정답 도출
+
+# 프롬프트 내용 : prompt = "질문: 이 숫자가 7이 맞니?\n답변: 이 숫자는"
+# --- 추론 결과 ---
+# 실제 정답: 7
+# 모델 답변:  7입니다.
+# 학습하지 못한 패턴이라 고정된 패턴의 답만 제출
