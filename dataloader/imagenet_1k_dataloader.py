@@ -1,5 +1,7 @@
 from torchvision import datasets, transforms
 from kaggle.api.kaggle_api_extended import KaggleApi
+from torch.utils.data import DataLoader, DistributedSampler
+from torchvision import datasets, transforms
 
 import os
 import torch
@@ -124,3 +126,83 @@ def get_imagenet_loaders(
     )
 
     return train_loader, val_loader
+
+
+def get_imagenet_loaders_fsdp(
+    data_dir=os.path.join(
+        "datasets", "imagenet_1k", "raw_data", "ILSVRC", "Data", "CLS-LOC"
+    ),
+    batch_size=256,
+):
+    # 1. 분산 환경 정보 확인
+    if not torch.distributed.is_initialized():
+        raise RuntimeError(
+            "FSDP를 사용하려면 먼저 torch.distributed.init_process_group()을 호출해야 합니다."
+        )
+
+    train_dir = os.path.join(data_dir, "train")
+    val_dir = os.path.join(data_dir, "val")
+
+    # 데이터셋 증강(Transform)은 기존과 동일
+    train_transform = transforms.Compose(
+        [
+            transforms.RandomResizedCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.AutoAugment(transforms.AutoAugmentPolicy.IMAGENET),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
+
+    val_transform = transforms.Compose(
+        [
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
+
+    train_dataset = datasets.ImageFolder(train_dir, transform=train_transform)
+    val_dataset = datasets.ImageFolder(val_dir, transform=val_transform)
+
+    # 2. DistributedSampler 추가 (핵심)
+    # shuffle=True는 Sampler 내부에서 처리하므로 DataLoader에서는 shuffle을 False로 둡니다.
+    train_sampler = DistributedSampler(
+        train_dataset,
+        rank=torch.distributed.get_rank(),
+        num_replicas=torch.distributed.get_world_size(),
+        shuffle=True,
+    )
+
+    # Validation은 일반적으로 shuffle하지 않지만, 분산 환경에서 나누어 검증하기 위해 Sampler 사용
+    val_sampler = DistributedSampler(
+        val_dataset,
+        rank=torch.distributed.get_rank(),
+        num_replicas=torch.distributed.get_world_size(),
+        shuffle=False,
+    )
+
+    # 3. DataLoader 설정
+    cpu_core_count = (
+        os.cpu_count() // torch.cuda.device_count()
+    )  # GPU당 할당할 코어 분할
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        sampler=train_sampler,  # Sampler 등록
+        num_workers=cpu_core_count,
+        pin_memory=True,
+        prefetch_factor=2,
+    )
+
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        sampler=val_sampler,  # Sampler 등록
+        num_workers=cpu_core_count,
+        pin_memory=True,
+    )
+
+    return train_loader, val_loader, train_sampler
