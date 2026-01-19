@@ -1,10 +1,20 @@
 from torch.amp import autocast, GradScaler
-from dataloader.imagenet_1k_dataloader import get_imagenet_loaders
+from dataloader.imagenet_1k_dataloader import (
+    get_imagenet_loaders,
+    get_imagenet_loaders_fsdp,
+)
 from vision.vit_model import ViTEncoder
 from tqdm import tqdm
 
+from torch.distributed.fsdp import (
+    FullyShardedDataParallel as FSDP,
+    FullStateDictConfig,
+    StateDictType,
+)
+
 import os
 import torch
+import torch.distributed as dist
 import torch.optim as optim
 import torch.nn as nn
 import pandas as pd
@@ -224,3 +234,96 @@ def imagenet_1k_end_to_end_test():
         scaler=scaler,
         scheduler=scheduler,
     )
+
+
+def save_fsdp_model(
+    model: nn.Module,
+    optimizer: torch.optim.Adam,
+    epoch: int,
+    path: str,
+):
+    # 1. 모든 프로세스가 가중치를 모으도록 설정
+    save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
+    with FSDP.state_dict_type(model, StateDictType.FULL_STATE_DICT, save_policy):
+        cpu_state = model.state_dict()
+
+    # 2. Rank 0(마스터 GPU)에서만 파일로 기록
+    if dist.get_rank() == 0:
+        print(f"--> Saving checkpoint to {path}...")
+        checkpoint = {
+            "model_state": cpu_state,
+            "optimizer_state": optimizer.state_dict(),  # 옵티마이저는 추가 처리가 복잡할 수 있음
+            "epoch": epoch,
+        }
+        torch.save(checkpoint, path)
+        print("--> Checkpoint saved.")
+
+
+def imagenet_1k_multi_gpu_train_test():
+    if not torch.cuda.is_available():
+        print("Must CUDA Avalialbe")
+        return
+
+    dist.init_process_group(backend="nccl")
+    local_rank = int(os.environ["LOCAL_RANK"])
+    torch.cuda.set_device(local_rank)
+    rank = dist.get_rank()
+
+    img_size = 224  # ImageNet 표준 해상도
+    patch_size = 16  # 224/16 = 14x14 총 196개의 패치 생성
+    embedding_size = 768  # ViT-Base 표준 임베딩 차원 (반드시 num_heads의 배수여야 함)
+    num_class = 1000  # ImageNet-1K의 클래스 개수
+    num_heads = 12  # 768 / 12 = head당 64차원 (표준 설정)
+    epochs = 100
+
+    model = ViTEncoder(
+        img_size=img_size,
+        patch_size=patch_size,
+        embedding_size=embedding_size,
+        num_class=num_class,
+        num_heads=num_heads,
+        in_channels=3,
+    ).cuda()
+    fsdp_model = FSDP(model)
+
+    # DataSet
+    train_loader, _, train_sampler = get_imagenet_loaders_fsdp(batch_size=256)
+    optimizer = torch.optim.Adam(fsdp_model.parameters(), lr=1e-4)
+
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=epochs, eta_min=1e-6
+    )
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+
+    scaler = GradScaler()
+    for epoch in range(epochs):
+        train_sampler.set_epoch(epoch=epoch)
+        fsdp_model.train()
+
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}")
+        for inputs, targets in pbar:
+            inputs, targets = inputs.cuda(), targets.cuda()
+            outputs = fsdp_model(inputs)
+
+            optimizer.zero_grad()
+            with torch.autocast():
+                loss = criterion(outputs, targets)
+                # 4. 스케일링된 Loss로 역전파(Backward)
+                scaler.scale(loss).backward()
+
+            # 5. 가중치 업데이트 (내부적으로 스케일 조정 및 Gradient Clipping 가능)
+            scaler.step(optimizer)
+            scaler.update()
+
+            if rank == 0:
+                pbar.set_postfix(loss=f"{loss.item():.4f}")
+        scheduler.step()
+        # [추가] 매 에폭 혹은 특정 주기에 저장
+        if (epoch + 1) % 10 == 0:
+            save_fsdp_model(
+                fsdp_model, optimizer, epoch, f"vit_fsdp_epoch_{epoch+1}.pth"
+            )
+    dist.destroy_process_group()
+
+    # # GPU 2개를 모두 사용하도록 설정
+    # torchrun --nproc_per_node=2 test.py
