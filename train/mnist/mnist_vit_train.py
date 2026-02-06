@@ -52,37 +52,6 @@ def valid(model: nn.Module, device: torch.device, test_loader: DataLoader):
     print(f"\nTest Accuracy: {100. * correct / len(test_loader.dataset):.2f}%")  # type: ignore
 
 
-def end_to_end_test():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    patch_size: int = 7
-    embedding_batch_size: int = patch_size * patch_size
-    epochs = 10
-    learning_rate = 0.001
-
-    model = ViTEncoder(
-        img_size=28,
-        patch_size=patch_size,
-        embedding_size=embedding_batch_size,
-        num_class=10,
-        num_heads=7,
-    ).to(device=device)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-
-    train_loader, test_loader = mnist_dataloader()
-
-    train(
-        model=model,
-        optimizer=optimizer,
-        criterion=criterion,
-        train_loader=train_loader,
-        device=device,
-        epochs=epochs,
-    )
-
-    valid(model=model, device=device, test_loader=test_loader)
-
-
 # (venv) C:\WorkSpace\Dev\Python\VLMStudy>python test.py
 # Using device: cpu
 # Epoch 1/10 | Batch 0/938 | Loss: 2.7868
