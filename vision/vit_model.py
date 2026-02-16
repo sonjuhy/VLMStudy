@@ -173,3 +173,46 @@ class ViTEncoder(nn.Module):
         # CLS 토큰 추출 및 분류
         cls_token = x[:, 0]
         return self.classifer(cls_token)
+
+
+class ViTDepthEncoder(nn.Module):
+    def __init__(
+        self,
+        embedding_size: int = 768,
+        img_size: int = 224,
+        patch_size: int = 16,
+        num_class: int = 1000,
+        num_heads: int = 12,  # ViT-Base 표준은 12개입니다.
+        in_channels: int = 4,  # [수정] RGB(3) + Depth(1) = 4
+        n_layers: int = 12,  # ViT-Base 표준은 12레이어입니다.
+    ):
+        super().__init__()
+        # 1. 패치 임베딩 (입력 채널 4개 수용)
+        self.embedding = ImageEmbeddingLayer(
+            in_channels, img_size, patch_size, embedding_size
+        )
+
+        # 2. Transformer 블록들 (기존 ModuleList를 TransformerEncoder 클래스로 통합 관리 권장)
+        # 메모리 절약을 위해 n_layers를 조절 가능하게 변경
+        self.transformer = TransformerEncoder(embedding_size, n_layer=n_layers)
+
+        # 3. 분류 헤드
+        self.classifier = nn.Sequential(
+            nn.LayerNorm(embedding_size), nn.Linear(embedding_size, num_class)
+        )
+
+    def extract_features(self, x):
+        """VLM의 시각 인코더로 사용할 때 호출 (CLS 제외 패치 토큰만 반환)"""
+        x = self.embedding(x)
+        x = self.transformer(x)
+        # x shape: [Batch, 197, 768] -> [Batch, 196, 768] (CLS 제외)
+        return x[:, 1:, :]
+
+    def forward(self, x):
+        """ImageNet 1K 학습 시 호출 (CLS 토큰 활용)"""
+        x = self.embedding(x)
+        x = self.transformer(x)
+
+        # CLS 토큰만 추출 [Batch, 768]
+        cls_token = x[:, 0]
+        return self.classifier(cls_token)
