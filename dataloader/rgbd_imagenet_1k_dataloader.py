@@ -3,6 +3,7 @@ from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 
 import torchvision.transforms.functional as F
+import torchvision.transforms as T
 import os
 import torch
 import numpy as np
@@ -66,27 +67,44 @@ class ImageNetRGBDDataset(Dataset):
 
         depth_img = Image.fromarray(depth_map)
 
-        # 3. 리사이즈 및 텐서 변환 (에러 방지 핵심 구간)
-        # transform 여부와 상관없이 모델 입력 크기(224)는 맞춰야 합니다.
-
-        # [안전장치 2] RGB와 Depth의 리사이즈를 항상 수행하여 크기 불일치 원천 차단
-        rgb_img = F.resize(rgb_img, [224, 224])
-        depth_img = F.resize(depth_img, [224, 224])
-
-        rgb_tensor = F.to_tensor(rgb_img)
-        depth_tensor = F.to_tensor(depth_img)
-
-        # 4. Augmentation 및 정규화
+        # 3. Augmentation & Preprocessing
         if self.transform:
-            # 추가적인 정규화 적용
+            # Random Resized Crop
+            # get_params를 사용하여 동일한 파라미터를 RGB와 Depth에 적용
+            i, j, h, w = T.RandomResizedCrop.get_params(
+                rgb_img, scale=(0.08, 1.0), ratio=(0.75, 1.3333333333333333)
+            )
+            rgb_img = F.resized_crop(rgb_img, i, j, h, w, (224, 224))
+            depth_img = F.resized_crop(depth_img, i, j, h, w, (224, 224))
+
+            # Random Horizontal Flip
+            if random.random() > 0.5:
+                rgb_img = F.hflip(rgb_img)
+                depth_img = F.hflip(depth_img)
+
+            # To Tensor
+            rgb_tensor = F.to_tensor(rgb_img)
+            depth_tensor = F.to_tensor(depth_img)
+
+            # Normalize
             rgb_tensor = F.normalize(
                 rgb_tensor, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
             )
             depth_tensor = F.normalize(depth_tensor, mean=[0.5], std=[0.5])
+
         else:
-            # transform이 없더라도 최소한의 정규화는 수행하는 것이 좋습니다.
-            # (이미 위에서 F.to_tensor를 통해 0~1 스케일링은 완료됨)
-            pass
+            # Validation: Simple Resize & Normalize
+            rgb_img = F.resize(rgb_img, [224, 224])
+            depth_img = F.resize(depth_img, [224, 224])
+
+            rgb_tensor = F.to_tensor(rgb_img)
+            depth_tensor = F.to_tensor(depth_img)
+
+            # Validation set normalization (Good practice to include)
+            rgb_tensor = F.normalize(
+                rgb_tensor, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+            )
+            depth_tensor = F.normalize(depth_tensor, mean=[0.5], std=[0.5])
 
         # 5. 최종 결합 및 라벨 반환
         # 여기서 더 이상 Size mismatch가 발생하지 않습니다.
@@ -123,14 +141,16 @@ def get_rgbd_imagenet_loaders(
         transform=False,
     )
 
-    # 3. DataLoader 생성
+    # 3. DataLoader 생성 (Windows 최적화)
+    # persistent_workers=True: 에폭마다 프로세스를 재생성하지 않음 (Windows 필수)
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        pin_memory=True,  # GPU 메모리 복사 속도 향상
-        prefetch_factor=2,  # CPU가 미리 데이터를 준비
+        pin_memory=True,
+        prefetch_factor=2,
+        persistent_workers=True if num_workers > 0 else False,
     )
 
     val_loader = DataLoader(
@@ -139,6 +159,7 @@ def get_rgbd_imagenet_loaders(
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
+        persistent_workers=True if num_workers > 0 else False,
     )
 
     return train_loader, val_loader
