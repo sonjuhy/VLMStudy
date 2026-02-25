@@ -114,6 +114,7 @@ class Projector(nn.Module):
             nn.Linear(input_size, input_size),
             nn.GELU(),
             nn.Linear(input_size, projection_size),
+            nn.LayerNorm(projection_size),
         )
 
     def forward(self, x):
