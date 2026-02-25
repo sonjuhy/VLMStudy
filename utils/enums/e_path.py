@@ -36,7 +36,7 @@ class CheckPointPathEnum(Enum):
         "checkpoints", "final_model", "vit_imagenet_1k_checkpoint_epoch_99.pth"
     )
     SOLAR_PROJECTOR_STAGE_2 = os.path.join(
-        "checkpoints", "vlm", "stage2", "solor_projector_epoch_1.pt"
+        "checkpoints", "vlm", "stage2", "solor_projector_epoch_1.pth"
     )
     VLM_FINAL_STAGE_3 = os.path.join(
         "checkpoints", "vlm", "stage3", "final_model", "pytorch_model.bin"

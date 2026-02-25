@@ -208,3 +208,12 @@ __marimo__/
 
 .vscode/
 datasets/
+checkpoints/
+__*
+
+# Depth model
+depth-anything-3
+
+# train model file
+*.pt
+*.pth
