@@ -69,7 +69,7 @@ def depth_vit_encoder_train(
         # 매 5에폭마다 혹은 마지막에 체크포인트 저장
         if (epoch + 1) % 5 == 0 or epoch == epochs - 1:
             current_loss = loss.item() * accumulation_steps
-            save_checkpoint(epoch + 1, model, optimizer, scaler, current_loss)
+            save_checkpoint(epoch + 1, model, optimizer, scaler, current_loss, val_acc)
 
         # Best 모델 저장
         if val_acc > best_acc:
@@ -81,6 +81,7 @@ def depth_vit_encoder_train(
                 optimizer,
                 scaler,
                 val_loss,
+                best_acc,
                 path="checkpoints",
                 filename="best_vit_depth.pth",
             )

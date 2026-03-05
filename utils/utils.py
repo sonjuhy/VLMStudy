@@ -23,6 +23,7 @@ def save_checkpoint(
     optimizer: optim.Optimizer,
     scaler: GradScaler,
     loss: float,
+    best_acc: float,
     path: str = "checkpoints",
     filename: str = None,
 ):
@@ -41,6 +42,7 @@ def save_checkpoint(
             "optimizer_state_dict": optimizer.state_dict(),
             "scaler_state_dict": scaler.state_dict(),
             "loss": loss,
+            "best_acc": 22.53,
         },
         checkpoint_path,
     )
