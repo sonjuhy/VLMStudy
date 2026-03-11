@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+from utils.train_utils import DropPath
+
 
 class ImageEmbeddingLayer(nn.Module):
     def __init__(
@@ -67,13 +69,14 @@ class FeedForwardLayer(nn.Sequential):
 
 
 class ViTModule(nn.Module):
-    def __init__(self, embedding_size: int, num_heads: int = 8):
+    def __init__(self, embedding_size: int, num_heads: int = 8, drop_path: float = 0.0):
         super().__init__()
         self.multihead_attention = MultiHeadAttention(
             embedding_size, num_heads=num_heads
         )
         self.FFL = FeedForwardLayer(embedding_size)
         self.norm = nn.LayerNorm(embedding_size)
+        self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
 
     def forward(self, x):
         if isinstance(x, tuple):
@@ -81,22 +84,32 @@ class ViTModule(nn.Module):
         # Attention + Skip Connection
         norm_x = self.norm(x)
         attn_out, attension = self.multihead_attention(norm_x)
-        x = x + attn_out
+        # x = x + attn_out
+        x = x + self.drop_path(attn_out)
 
         # FFL + Skip Connection
-        x = x + self.FFL(self.norm(x))
+        # x = x + self.FFL(self.norm(x))
+        x = x + self.drop_path(self.FFL(self.norm(x)))
+
         return x, attension
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, embedding_size: int, n_layer: int = 5) -> None:
+    def __init__(
+        self,
+        embedding_size: int,
+        n_layer: int = 5,
+        drop_path_rate: float = 0.1,
+    ) -> None:
         super().__init__()
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, n_layer)]
         self.layers = nn.ModuleList(
             [
                 ViTModule(
                     embedding_size=embedding_size,
+                    drop_path=dpr[i],
                 )
-                for _ in range(n_layer)
+                for i in range(n_layer)
             ]
         )
 
@@ -186,6 +199,7 @@ class ViTDepthEncoder(nn.Module):
         num_heads: int = 12,  # ViT-Base 표준은 12개입니다.
         in_channels: int = 4,  # [수정] RGB(3) + Depth(1) = 4
         n_layers: int = 12,  # ViT-Base 표준은 12레이어입니다.
+        drop_path_rate: float = 0.1,
     ):
         super().__init__()
         # 1. 패치 임베딩 (입력 채널 4개 수용)
@@ -195,7 +209,11 @@ class ViTDepthEncoder(nn.Module):
 
         # 2. Transformer 블록들 (기존 ModuleList를 TransformerEncoder 클래스로 통합 관리 권장)
         # 메모리 절약을 위해 n_layers를 조절 가능하게 변경
-        self.transformer = TransformerEncoder(embedding_size, n_layer=n_layers)
+        self.transformer = TransformerEncoder(
+            embedding_size, n_layer=n_layers, drop_path_rate=drop_path_rate
+        )
+
+        # self.transformer = TransformerEncoder(embedding_size, n_layer=n_layers)
 
         # 3. 분류 헤드
         self.classifier = nn.Sequential(
