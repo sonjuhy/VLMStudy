@@ -45,6 +45,7 @@ class VLMRunning:
                 train_continue=train_continue,
                 start_epoch=start_epoch,
                 end_epoch=end_epoch,
+                best_acc=54.69,
             )
 
 
@@ -52,4 +53,6 @@ if __name__ == "__main__":
     # vit, vlm 선택 옵션
     # mnist, img_1k, depth 선택 옵션
 
-    VLMRunning().depth_vlm_end_to_end(train_continue=True, start_epoch=30, end_epoch=65)
+    VLMRunning().depth_vlm_end_to_end(
+        train_continue=True, start_epoch=65, end_epoch=100
+    )
