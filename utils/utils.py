@@ -42,7 +42,7 @@ def save_checkpoint(
             "optimizer_state_dict": optimizer.state_dict(),
             "scaler_state_dict": scaler.state_dict(),
             "loss": loss,
-            "best_acc": 22.53,
+            "best_acc": best_acc,
         },
         checkpoint_path,
     )
