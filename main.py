@@ -1,5 +1,6 @@
 from end_to_end.mnist_ete import mnist_vit_end_to_end, mnist_vlm_end_to_end
 from end_to_end.depth_ete import depth_vlm_end_to_end
+from end_to_end.imagenet_ete import imagenet_vit_end_to_end
 from utils.utils import timer_call
 
 import argparse
@@ -15,7 +16,7 @@ class ViTRunning:
 
     def img_1k_vit_end_to_end(self):
         with timer_call():
-            mnist_vlm_end_to_end()
+            imagenet_vit_end_to_end()
 
     def depth_vit_end_to_end(self):
         with timer_call():

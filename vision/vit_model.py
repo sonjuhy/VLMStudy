@@ -143,6 +143,7 @@ class ViTEncoder(nn.Module):
         num_class: int,
         num_heads: int = 8,
         in_channels: int = 1,
+        n_layers: int = 12,  # ViT-Base 표준은 12레이어입니다.
     ):
         super().__init__()
         # 임베딩은 한 번만 실행되도록 여기에 배치
@@ -151,7 +152,7 @@ class ViTEncoder(nn.Module):
         )
 
         self.layers = nn.ModuleList(
-            [ViTModule(embedding_size, num_heads=num_heads) for _ in range(5)]
+            [ViTModule(embedding_size, num_heads=num_heads) for _ in range(n_layers)]
         )
 
         self.classifer = nn.Linear(embedding_size, num_class)

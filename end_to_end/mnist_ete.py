@@ -23,6 +23,7 @@ def mnist_vit_end_to_end():
         embedding_size=embedding_batch_size,
         num_class=10,
         num_heads=7,
+        n_layers=5,
     ).to(device=device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)

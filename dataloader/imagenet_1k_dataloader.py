@@ -10,8 +10,6 @@ import pandas as pd  # CSV 처리를 위해 추가
 
 
 def download_and_extract_from_kaggle():
-    print(f'Kaggle API Token : {os.environ["KAGGLE_API_TOKEN"]}')
-
     api = KaggleApi()
     api.authenticate()
 
@@ -65,9 +63,7 @@ def download_and_extract_from_kaggle():
 
 
 def get_imagenet_loaders(
-    data_dir=os.path.join(
-        "datasets", "imagenet_1k", "raw_data", "ILSVRC", "Data", "CLS-LOC"
-    ),
+    data_dir=os.path.join("datasets", "imagenet_1k"),
     batch_size=256,
 ):
     if not os.path.exists(data_dir) or not os.listdir(data_dir):
@@ -129,9 +125,7 @@ def get_imagenet_loaders(
 
 
 def get_imagenet_loaders_fsdp(
-    data_dir=os.path.join(
-        "datasets", "imagenet_1k", "raw_data", "ILSVRC", "Data", "CLS-LOC"
-    ),
+    data_dir=os.path.join("datasets", "imagenet_1k"),
     batch_size=256,
 ):
     # 1. 분산 환경 정보 확인
