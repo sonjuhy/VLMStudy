@@ -1,5 +1,8 @@
 from vision.vit_model import ViTEncoder
-from dataloader.imagenet_1k_dataloader import get_imagenet_loaders_fsdp
+from dataloader.imagenet_1k_dataloader import (
+    get_imagenet_loaders,
+    get_imagenet_loaders_fsdp,
+)
 from train.imagenet.imagenet_vit_train import imagenet_vit_encoder_train
 from torch.nn.parallel import DistributedDataParallel as DDP
 from datetime import date, datetime
@@ -20,6 +23,7 @@ def imagenet_vit_end_to_end(
     weight_decay: float = 0.05,
     patience: int = 60,
     resume_checkpoint: str = "",
+    accumulation_steps: int = 1,
 ):
     """
     실행 방법 (2-GPU DDP, 레포 루트에서):
@@ -37,13 +41,26 @@ def imagenet_vit_end_to_end(
     # 거의 선형에 가까운 DDP 스케일링이 나오므로 성능 손실은 미미함.
     os.environ.setdefault("NCCL_P2P_DISABLE", "1")
 
-    # --- DDP 초기화 (torchrun이 RANK/WORLD_SIZE/LOCAL_RANK 환경변수를 설정해줌) ---
-    dist.init_process_group(backend="nccl")
-    local_rank = int(os.environ["LOCAL_RANK"])
-    torch.cuda.set_device(local_rank)
-    device = torch.device(f"cuda:{local_rank}")
-    world_size = dist.get_world_size()
-    is_main_process = dist.get_rank() == 0
+    # 단일 GPU(single-process) 환경에서는 DDP rendezvous 자체가 불필요하고,
+    # Windows에서는 gloo/nccl 초기화 과정에서 호스트명 resolve 문제가 잦아 아예 건너뜀
+    use_ddp = int(os.environ.get("WORLD_SIZE", "1")) > 1
+
+    if use_ddp:
+        # --- DDP 초기화 (torchrun이 RANK/WORLD_SIZE/LOCAL_RANK 환경변수를 설정해줌) ---
+        # NCCL은 Windows 네이티브 환경에서 지원되지 않으므로 미지원 시 gloo로 폴백
+        backend = "nccl" if dist.is_nccl_available() else "gloo"
+        dist.init_process_group(backend=backend)
+        local_rank = int(os.environ["LOCAL_RANK"])
+        torch.cuda.set_device(local_rank)
+        device = torch.device(f"cuda:{local_rank}")
+        world_size = dist.get_world_size()
+        is_main_process = dist.get_rank() == 0
+    else:
+        local_rank = 0
+        torch.cuda.set_device(local_rank)
+        device = torch.device(f"cuda:{local_rank}")
+        world_size = 1
+        is_main_process = True
 
     # --- 체크포인트 로드 (DDP 래핑 전, bare model에 state dict 적용) ---
     ckpt = None
@@ -85,7 +102,8 @@ def imagenet_vit_end_to_end(
     if ckpt is not None:
         model.load_state_dict(ckpt["model_state_dict"])
 
-    model = DDP(model, device_ids=[local_rank])
+    if use_ddp:
+        model = DDP(model, device_ids=[local_rank])
 
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     optimizer = optim.AdamW(
@@ -118,9 +136,15 @@ def imagenet_vit_end_to_end(
 
     scaler = torch.GradScaler()
 
-    train_loader, val_loader, train_sampler = get_imagenet_loaders_fsdp(
-        data_dir="datasets/imagenet_1k", batch_size=batch_size
-    )
+    if use_ddp:
+        train_loader, val_loader, train_sampler = get_imagenet_loaders_fsdp(
+            data_dir="datasets/imagenet_1k", batch_size=batch_size
+        )
+    else:
+        train_loader, val_loader = get_imagenet_loaders(
+            data_dir="datasets/imagenet_1k", batch_size=batch_size
+        )
+        train_sampler = None
 
     if is_main_process:
         start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -169,6 +193,7 @@ def imagenet_vit_end_to_end(
         val_loader=val_loader,
         patience=patience,
         best_acc=best_acc,
+        accumulation_steps=accumulation_steps,
     )
 
     if is_main_process:
@@ -178,7 +203,8 @@ def imagenet_vit_end_to_end(
             f.write(f"Best Val Acc: {best_acc:.2f}%\n")
             f.write("=" * 70 + "\n\n")
 
-    dist.destroy_process_group()
+    if use_ddp:
+        dist.destroy_process_group()
 
 
 if __name__ == "__main__":
