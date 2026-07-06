@@ -210,6 +210,7 @@ __marimo__/
 datasets/
 checkpoints/
 __*
+!__init__.py
 
 # Depth model
 depth-anything-3
