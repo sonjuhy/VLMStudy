@@ -1,0 +1,19 @@
+======================================================================
+Training Start: 2026-07-09 10:22:49
+Resumed from: checkpoints/final_model/vit_imagenet_1k_checkpoint_epoch_65.pth (epoch 65, best_acc=54.40%)
+ViT Version: ViT-Base/16 (official spec)
+Model Config: embedding_size=768, num_heads=12, n_layers=12, patch_size=16, img_size=224, num_class=1000
+Dataset: ImageNet-1K (ILSVRC2012, 1000 classes)
+Augmentations: RandomResizedCrop(224), RandomHorizontalFlip, AutoAugment(ImageNet policy), Mixup(alpha=0.8, p=0.5), Label Smoothing(0.1)
+Hyperparameters: epochs=300, warmup_epochs=20, batch_size=16(per GPU) x world_size=1 GPUs, optimizer=AdamW(lr=0.001, weight_decay=0.05), AMP=bfloat16, scheduler=LinearWarmup+CosineAnnealing, early_stopping_patience=60
+======================================================================
+[2026-07-09 10:22:49] Starting training from Epoch 66 with current Best Acc: 54.40%
+[2026-07-09 14:30:16] Epoch 66/300 | LR: 0.000938 | Train Loss: 4.1036 | Train Acc: 34.53% | Val Loss: 2.8574 | Val Top-1: 53.11% | Val Top-5: 77.91%
+[2026-07-09 18:11:56] Epoch 67/300 | LR: 0.000935 | Train Loss: 4.1963 | Train Acc: 32.98% | Val Loss: 2.8226 | Val Top-1: 53.97% | Val Top-5: 78.15%
+[2026-07-09 21:52:58] Epoch 68/300 | LR: 0.000932 | Train Loss: 4.0507 | Train Acc: 35.47% | Val Loss: 2.8423 | Val Top-1: 53.37% | Val Top-5: 77.88%
+[2026-07-10 01:34:33] Epoch 69/300 | LR: 0.000929 | Train Loss: 4.1642 | Train Acc: 34.43% | Val Loss: 2.8378 | Val Top-1: 53.48% | Val Top-5: 78.01%
+[2026-07-10 05:16:25] Epoch 70/300 | LR: 0.000926 | Train Loss: 4.0885 | Train Acc: 34.89% | Val Loss: 2.7873 | Val Top-1: 54.74% | Val Top-5: 79.31%
+[2026-07-10 05:16:29] New Best Accuracy! Top-1: 54.74% | Top-5: 79.31% — Saving model...
+[2026-07-10 08:59:18] Epoch 71/300 | LR: 0.000923 | Train Loss: 4.0604 | Train Acc: 35.37% | Val Loss: 2.7684 | Val Top-1: 55.22% | Val Top-5: 79.29%
+[2026-07-10 08:59:18] New Best Accuracy! Top-1: 55.22% | Top-5: 79.29% — Saving model...
+[2026-07-10 12:46:14] Epoch 72/300 | LR: 0.000920 | Train Loss: 4.0793 | Train Acc: 35.02% | Val Loss: 2.8813 | Val Top-1: 52.91% | Val Top-5: 77.72%

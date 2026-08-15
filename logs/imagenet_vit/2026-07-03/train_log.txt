@@ -1,0 +1,17 @@
+======================================================================
+Training Start: 2026-07-03 21:39:14
+Resumed from: checkpoints/basic/best_vit_imagenet_1k.pth (epoch 53, best_acc=53.58%)
+ViT Version: ViT-Base/16 (official spec)
+Model Config: embedding_size=768, num_heads=12, n_layers=12, patch_size=16, img_size=224, num_class=1000
+Dataset: ImageNet-1K (ILSVRC2012, 1000 classes)
+Augmentations: RandomResizedCrop(224), RandomHorizontalFlip, AutoAugment(ImageNet policy), Mixup(alpha=0.8, p=0.5), Label Smoothing(0.1)
+Hyperparameters: epochs=300, warmup_epochs=20, batch_size=32(per GPU) x world_size=1 GPUs, optimizer=AdamW(lr=0.001, weight_decay=0.05), AMP=bfloat16, scheduler=LinearWarmup+CosineAnnealing, early_stopping_patience=60
+======================================================================
+[2026-07-03 21:39:14] Starting training from Epoch 54 with current Best Acc: 53.58%
+[2026-07-04 02:53:30] Epoch 54/300 | LR: 0.000966 | Train Loss: 4.2365 | Train Acc: 32.29% | Val Loss: 3.0299 | Val Top-1: 49.28% | Val Top-5: 74.80%
+[2026-07-04 05:42:18] Epoch 55/300 | LR: 0.000964 | Train Loss: 4.1965 | Train Acc: 32.93% | Val Loss: 2.9557 | Val Top-1: 51.29% | Val Top-5: 76.12%
+[2026-07-04 08:30:49] Epoch 56/300 | LR: 0.000962 | Train Loss: 4.1964 | Train Acc: 32.94% | Val Loss: 2.9329 | Val Top-1: 51.47% | Val Top-5: 76.49%
+[2026-07-04 11:18:46] Epoch 57/300 | LR: 0.000960 | Train Loss: 4.1327 | Train Acc: 34.09% | Val Loss: 2.8685 | Val Top-1: 53.21% | Val Top-5: 77.53%
+[2026-07-04 14:11:40] Epoch 58/300 | LR: 0.000958 | Train Loss: 4.1582 | Train Acc: 33.68% | Val Loss: 2.9397 | Val Top-1: 51.25% | Val Top-5: 76.41%
+[2026-07-04 17:06:37] Epoch 59/300 | LR: 0.000955 | Train Loss: 4.2552 | Train Acc: 32.89% | Val Loss: 2.8887 | Val Top-1: 52.62% | Val Top-5: 77.10%
+[2026-07-04 20:01:29] Epoch 60/300 | LR: 0.000953 | Train Loss: 4.0756 | Train Acc: 35.18% | Val Loss: 2.7186 | Val Top-1: 56.00% | Val Top-5: 80.22%

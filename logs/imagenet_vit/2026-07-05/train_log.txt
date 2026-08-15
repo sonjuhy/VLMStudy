@@ -1,0 +1,10 @@
+======================================================================
+Training Start: 2026-07-05 22:02:56
+Resumed from: checkpoints/final_model/vit_imagenet_1k_checkpoint_epoch_60.pth (epoch 60, best_acc=56.00%)
+ViT Version: ViT-Base/16 (official spec)
+Model Config: embedding_size=768, num_heads=12, n_layers=12, patch_size=16, img_size=224, num_class=1000
+Dataset: ImageNet-1K (ILSVRC2012, 1000 classes)
+Augmentations: RandomResizedCrop(224), RandomHorizontalFlip, AutoAugment(ImageNet policy), Mixup(alpha=0.8, p=0.5), Label Smoothing(0.1)
+Hyperparameters: epochs=300, warmup_epochs=20, batch_size=32(per GPU) x world_size=1 GPUs, optimizer=AdamW(lr=0.001, weight_decay=0.05), AMP=bfloat16, scheduler=LinearWarmup+CosineAnnealing, early_stopping_patience=60
+======================================================================
+[2026-07-05 22:02:56] Starting training from Epoch 61 with current Best Acc: 56.00%
