@@ -1,0 +1,10 @@
+======================================================================
+Training Start: 2026-10-20 21:02:17
+Resumed from: checkpoints/depth_final_model/best_vit_depth.pth (epoch 246, best_acc=70.33%)
+ViT Version: ViT-Base/16 (official spec, in_channels=4 RGB-D)
+Model Config: embedding_size=768, num_heads=12, patch_size=16, img_size=224, num_class=1000
+Dataset: ImageNet-1K RGB-D (RGB + estimated Depth, 1000 classes)
+Augmentations: RandomResizedCrop(224), RandomHorizontalFlip, AutoAugment(ImageNet policy, RGB only), Mixup(alpha=0.8, p=0.5), Label Smoothing(0.1)
+Hyperparameters: epochs=300, warmup_epochs=20, batch_size=32 x accumulation=16 (effective 512), optimizer=AdamW(lr=1e-3, weight_decay=0.05), AMP=bfloat16, scheduler=LinearWarmup+CosineAnnealing, early_stopping_patience=60
+======================================================================
+[2026-10-20 21:02:17] Starting training from Epoch 247 with current Best Acc: 70.33%
