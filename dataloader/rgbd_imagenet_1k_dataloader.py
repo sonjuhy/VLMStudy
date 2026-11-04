@@ -14,6 +14,8 @@ class ImageNetRGBDDataset(Dataset):
         self.rgb_root = rgb_root
         self.depth_root = depth_root
         self.transform = transform
+        # AutoAugment는 RGB 3채널 정책이라 depth에는 적용하지 않고 RGB에만 적용
+        self.autoaugment = T.AutoAugment(T.AutoAugmentPolicy.IMAGENET)
 
         self.classes = sorted(
             entry.name for entry in os.scandir(rgb_root) if entry.is_dir()
@@ -81,6 +83,10 @@ class ImageNetRGBDDataset(Dataset):
             if random.random() > 0.5:
                 rgb_img = F.hflip(rgb_img)
                 depth_img = F.hflip(depth_img)
+
+            # AutoAugment (RGB에만 적용 - depth는 기하학적 대응이 깨질 수 있는
+            # 색상/대비 변형까지 포함돼 있어 제외)
+            rgb_img = self.autoaugment(rgb_img)
 
             # To Tensor
             rgb_tensor = F.to_tensor(rgb_img)

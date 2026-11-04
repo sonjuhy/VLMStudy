@@ -4,14 +4,36 @@ from utils.utils import save_checkpoint
 from torch.optim.lr_scheduler import LRScheduler
 from tqdm import tqdm
 from torch import autocast, GradScaler
-from datetime import date
+from datetime import datetime
 
+import glob
 import os
 import numpy as np
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
+
+
+def _log(log_path: str, message: str):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{timestamp}] {message}"
+    print(line)
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
+
+
+def _prune_old_checkpoints(path: str, prefix: str, keep: int = 3):
+    """주기적 체크포인트가 무한히 쌓여 디스크를 다 채우는 걸 방지 (최근 N개만 보존)"""
+    files = sorted(
+        glob.glob(os.path.join(path, f"{prefix}*.pth")),
+        key=os.path.getmtime,
+    )
+    for f in files[:-keep] if keep > 0 else files:
+        try:
+            os.remove(f)
+        except OSError:
+            pass
 
 
 def depth_vit_encoder_train(
@@ -24,13 +46,18 @@ def depth_vit_encoder_train(
     scaler: GradScaler,
     scheduler: LRScheduler,
     device: torch.device,
+    log_path: str,
     val_loader: torch.utils.data.DataLoader = None,
     accumulation_steps: int = 16,  # 16(Batch) * 16 = 실제 배치 256 효과
     best_acc: float = 0.0,
+    patience: int = 20,
 ):
-    print(
-        f"Starting training from Epoch {start_epoch} with current Best Acc: {best_acc:.2f}%"
+    _log(
+        log_path,
+        f"Starting training from Epoch {start_epoch} with current Best Acc: {best_acc:.2f}%",
     )
+
+    epochs_without_improvement = 0
 
     for epoch in range(start_epoch - 1, epochs):
         model.train()
@@ -48,7 +75,7 @@ def depth_vit_encoder_train(
                 inputs, targets_a, targets_b, lam = mixup_data(
                     inputs, targets, alpha=0.8
                 )
-            with autocast(device_type="cuda"):
+            with autocast(device_type="cuda", dtype=torch.bfloat16):
                 outputs = model(inputs)
                 # Loss 계산 로직 분기
                 if use_mixup:
@@ -59,14 +86,13 @@ def depth_vit_encoder_train(
                     loss = criterion(outputs, targets)
 
                 loss = loss / accumulation_steps
-                # loss = criterion(outputs, targets)
-                # loss = loss / accumulation_steps
 
             scaler.scale(loss).backward()
 
             with torch.no_grad():
                 _, predicted = outputs.max(1)
-                train_total += targets.size(0)
+                batch_size = targets.size(0)
+                train_total += batch_size
 
                 # Mixup 적용 여부에 따른 정답 처리
                 if use_mixup:
@@ -77,8 +103,7 @@ def depth_vit_encoder_train(
                 else:
                     train_correct += (predicted == targets).sum().item()
 
-                # 배치 Loss 누적 (accumulation_steps로 나눈 것을 원복하여 더함)
-                running_train_loss += loss.item() * accumulation_steps
+                running_train_loss += loss.item() * accumulation_steps * batch_size
 
             if (i + 1) % accumulation_steps == 0:
                 scaler.unscale_(optimizer)
@@ -89,38 +114,45 @@ def depth_vit_encoder_train(
 
             pbar.set_postfix(loss=f"{loss.item() * accumulation_steps:.4f}")
 
-        # Train Loss calc
-        epoch_train_loss = running_train_loss / len(train_loader)
+        epoch_train_loss = running_train_loss / train_total
         epoch_train_acc = 100.0 * train_correct / train_total
 
-        # Validation
-        val_loss, val_acc = depth_vit_encoder_validate(
+        val_loss, val_top1, val_top5 = depth_vit_encoder_validate(
             model, val_loader, criterion, device
         )
-        print(
-            f"Train Loss: {epoch_train_loss:.4f} | Train Acc: {epoch_train_acc:.2f}% | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}%"
+
+        current_lr = optimizer.param_groups[0]["lr"]
+        _log(
+            log_path,
+            f"Epoch {epoch+1}/{epochs} | LR: {current_lr:.6f} | "
+            f"Train Loss: {epoch_train_loss:.4f} | Train Acc: {epoch_train_acc:.2f}% | "
+            f"Val Loss: {val_loss:.4f} | Val Top-1: {val_top1:.2f}% | Val Top-5: {val_top5:.2f}%",
         )
 
-        # --- [추가] 로그 유실 방지: CSV 파일에 기록 ---
-        log_file_name = f"train_log_{date.today()}.csv"
-        with open(log_file_name, "a", encoding="utf-8") as f:
-            # 파일이 비어있다면 헤더 작성
-            if os.path.getsize(log_file_name) == 0:
-                f.write("epoch,val_loss,val_acc\n")
-            f.write(
-                f"{epoch+1},{epoch_train_loss:.4f},{epoch_train_acc:.2f},{val_loss:.4f},{val_acc:.2f}\n"
-            )
-        # -------------------------------------------
-
-        # 매 5에폭마다 혹은 마지막에 체크포인트 저장
+        # 매 5에폭마다 혹은 마지막에 체크포인트 저장 (디스크 공간 보호를 위해 최근 3개만 보존)
         if (epoch + 1) % 5 == 0 or epoch == epochs - 1:
-            current_loss = loss.item() * accumulation_steps
-            save_checkpoint(epoch + 1, model, optimizer, scaler, current_loss, val_acc)
+            save_checkpoint(
+                epoch + 1,
+                model,
+                optimizer,
+                scaler,
+                epoch_train_loss,
+                val_top1,
+                path="checkpoints/depth_final_model",
+                filename=f"vit_depth_checkpoint_epoch_{epoch+1}.pth",
+            )
+            _prune_old_checkpoints(
+                "checkpoints/depth_final_model", "vit_depth_checkpoint_epoch_", keep=3
+            )
 
         # Best 모델 저장
-        if val_acc > best_acc:
-            print(f"New Best Accuracy! ({val_acc:.2f}%) Saving model...")
-            best_acc = val_acc
+        if val_top1 > best_acc:
+            best_acc = val_top1
+            epochs_without_improvement = 0
+            _log(
+                log_path,
+                f"New Best Accuracy! Top-1: {val_top1:.2f}% | Top-5: {val_top5:.2f}% - Saving model...",
+            )
             save_checkpoint(
                 epoch + 1,
                 model,
@@ -128,9 +160,21 @@ def depth_vit_encoder_train(
                 scaler,
                 val_loss,
                 best_acc,
-                path="checkpoints",
+                path="checkpoints/depth_final_model",
                 filename="best_vit_depth.pth",
             )
+        else:
+            epochs_without_improvement += 1
 
         # 스케줄러 업데이트
         scheduler.step()
+
+        if epochs_without_improvement >= patience:
+            _log(
+                log_path,
+                f"Early stopping triggered at epoch {epoch+1} "
+                f"(no improvement for {patience} epochs, best val acc: {best_acc:.2f}%)",
+            )
+            break
+
+    return best_acc
