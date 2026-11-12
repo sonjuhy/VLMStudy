@@ -1,0 +1,41 @@
+{
+  "encoder": "rgbd",
+  "args": {
+    "encoder": "rgbd",
+    "llm_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "projector": "mlp",
+    "rgb_root": "datasets/imagenet_1k",
+    "depth_root": "datasets/imagenet_1k_depth",
+    "n_train": 30000,
+    "n_test": 6000,
+    "epochs": 3,
+    "batch_size": 16,
+    "accumulation_steps": 2,
+    "lr": 0.0002,
+    "weight_decay": 0.05,
+    "num_workers": 4,
+    "seed": 42,
+    "output_dir": "depth_ab_study/results"
+  },
+  "results": {
+    "lr": {
+      "acc": 98.59679266895762,
+      "majority": 50.0,
+      "n": 3492
+    },
+    "cb": {
+      "acc": 96.79376083188909,
+      "majority": 50.0,
+      "n": 1154
+    },
+    "tb": {
+      "acc": 97.18498659517427,
+      "majority": 50.0,
+      "n": 746
+    },
+    "overall": {
+      "acc": 98.01557863501483,
+      "n": 5392
+    }
+  }
+}
