@@ -1,0 +1,34 @@
+{
+  "encoder": "rgbd",
+  "seed": 5,
+  "args": {
+    "encoder": "rgbd",
+    "llm_id": "Qwen/Qwen2.5-0.5B-Instruct",
+    "projector": "mlp",
+    "epochs": 3,
+    "batch_size": 16,
+    "accumulation_steps": 2,
+    "lr": 0.0002,
+    "weight_decay": 0.05,
+    "num_workers": 4,
+    "max_train": 0,
+    "seed": 5,
+    "output_dir": "depth_ab_study/results_cvbench"
+  },
+  "results": {
+    "cv_bench": 68.51736898138608,
+    "2D": 65.78473796277217,
+    "3D": 71.25,
+    "2D/ADE20K": 64.6129541864139,
+    "2D/COCO": 66.95652173913044,
+    "3D/Omni3D": 71.25,
+    "3D_source/Omni3D_Hypersim": 67.75,
+    "3D_source/Omni3D_SUNRGBD": 78.5,
+    "3D_source/Omni3D_nuScenes": 67.5,
+    "task/Count": 59.13705583756345,
+    "task/Depth": 87.0,
+    "task/Distance": 55.5,
+    "task/Relation": 74.15384615384616,
+    "chance_cv_bench": 42.48890475209247
+  }
+}
